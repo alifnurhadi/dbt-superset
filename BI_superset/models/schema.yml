@@ -1,0 +1,116 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "Staging model for customers"
+    columns:
+      - name: customer_id
+        description: "Primary key for the order-specific customer."
+        tests:
+          - unique
+          - not_null
+      - name: customer_unique_id
+        description: "Unique identifier for the actual person."
+        tests:
+          - not_null
+      - name: customer_zip_code_prefix
+      - name: customer_city
+      - name: customer_state
+
+  - name: stg_geolocation
+    description: "Staging model for geolocation"
+    columns:
+      - name: geolocation_zip_code_prefix
+      - name: geolocation_lat
+      - name: geolocation_lng
+      - name: geolocation_city
+      - name: geolocation_state
+
+  - name: stg_order_items
+    description: "Staging model for order_items"
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+      - name: order_item_id
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+      - name: seller_id
+        tests:
+          - not_null
+      - name: shipping_limit_date
+      - name: price
+      - name: freight_value
+
+  - name: stg_order_payments
+    description: "Staging model for order_payments"
+    columns:
+      - name: order_id
+        tests:
+          - not_null
+      - name: payment_sequential
+      - name: payment_type
+      - name: payment_installments
+      - name: payment_value
+
+  - name: stg_order_reviews
+    description: "Staging model for order_reviews"
+    columns:
+      - name: review_id
+        tests:
+          - not_null
+      - name: order_id
+        tests:
+          - not_null
+      - name: review_score
+      - name: review_comment_title
+      - name: review_comment_message
+      - name: review_creation_date
+      - name: review_answer_timestamp
+
+  - name: stg_orders
+    description: "Staging model for orders"
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: order_status
+        tests:
+          - not_null
+      - name: order_purchase_timestamp
+      - name: order_approved_at
+      - name: order_delivered_carrier_date
+      - name: order_delivered_customer_date
+      - name: order_estimated_delivery_date
+
+  - name: stg_product_category_name_translation
+    description: "Staging model for product_category_name_translation"
+    columns:
+      - name: product_category_name
+        tests:
+          - unique
+          - not_null
+      - name: product_category_name_english
+
+  - name: stg_products
+    description: "Staging model for products"
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+      - name: product_category_name
+      - name: product_name_lenght
+      - name: product_description_lenght
+      - name: product_photos_qty
+      - name: product_weight_g
+      - name: product_length_cm
+      - name: product_height_cm
+      - name: product_width_cm
