@@ -27,6 +27,7 @@ SELECT
   FROM addition_prev
   ORDER BY year, month;
 
+
 -- A2: Top 10 Product Categories by Revenue
 WITH filtered_orders AS (
     SELECT order_id
