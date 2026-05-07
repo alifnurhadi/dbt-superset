@@ -1,0 +1,42 @@
+Here are the comprehensive drafts for your two PDF deliverables. I have written these from the perspective of a Senior BI / Analytics Engineer, utilizing the exact code and architectural choices present in your uploaded SQL files (optimize.sql, stg_order_reviews.sql, int_orders_detail.sql, and mart_order_detail.sql).
+
+You can copy and paste these directly into Google Docs or Microsoft Word and export them as your final PDFs.
+
+PDF 1: Advanced SQL & Query Optimisation (Part B)
+Role: Senior BI Engineer
+Topic: Part B Query Refactoring & Optimisation Documentation
+
+1. Query Optimisation Approach & Bottlenecks Identified
+Upon reviewing the legacy query provided in Part B, I identified several critical performance bottlenecks and a severe logical flaw affecting data integrity. My refactoring approach focused on improving readability, reducing disk I/O operations, and ensuring mathematical accuracy.
+
+Bottleneck 1: The Cartesian "Fan-Out" Trap (Data Integrity Issue)
+
+The Issue: The legacy query joined the order_items table directly to the order_payments table inside the ps subquery. Because orders frequently contain multiple items and can be paid for using multiple payment methods, this direct join created a cartesian product. If a customer bought two items and used one credit card, the payment revenue was duplicated across both items, artificially inflating the company's reported revenue.
+
+The Solution: I introduced a payment_agg CTE to safely pre-aggregate the payment methods to the order_id grain before joining them to the rest of the dataset. This enforces a strict 1:1 relationship during the join, completely eliminating the fan-out bug.
+
+Bottleneck 2: Redundant Table Scans (Performance Issue)
+
+The Issue: The original query utilized nested subqueries (b, ps, and ls), which forced the database to execute full Sequential Scans on the massive order_items and products tables three separate times.
+
+The Solution: I flattened the architecture using a unified base CTE. By joining all core tables once, I reduced the I/O load drastically, allowing the query optimizer to process the dataset in a single pass.
+
+Bottleneck 3: Inefficient Window Functions (Compute Issue)
+
+The Issue: In the final outermost SELECT, the legacy query calculated the grand total revenue by calling SUM(total_revenue) OVER () twice in the same block, forcing redundant in-memory calculations.
+
+The Solution: I calculated SUM(total_revenue) OVER () AS grand_total exactly once within the ranked (or recap_stats) CTE. I then referenced this pre-computed column in the final SELECT block, optimizing CPU usage.
+
+2. Assumptions Made
+Revenue Definition: I assumed that order_items.price is the source of truth for category-level revenue, rather than the raw payment values, as payments apply to the entire cart and cannot be easily split among mixed-category items.
+
+Late Delivery Logic: I assumed that calculating "average days late" should strictly only apply to orders where order_delivered_customer_date is strictly greater than the estimated date, and successfully delivered orders (non-null delivery dates).
+
+3. Verifying the Improvement in a Real Environment
+To verify these improvements in a production environment, I would utilize the EXPLAIN ANALYZE command in PostgreSQL.
+
+I would look for a reduction in the Execution Time (measured in milliseconds) between the legacy and refactored queries.
+
+I would examine the Query Plan Cost and confirm that the number of Seq Scan operations on the order_items table dropped from three down to one.
+
+If this query were powering a live dashboard, I would also monitor the CPU and Memory utilization spikes in our database monitoring tool (e.g., Datadog or AWS CloudWatch) during execution.

@@ -1,0 +1,53 @@
+1. Model Design Decisions & Layering Rationale
+For this project, I adopted the industry-standard modular data modeling approach (Staging, Intermediate, Mart) using dbt. This ensures the codebase remains DRY (Don't Repeat Yourself), heavily tested, and optimized for downstream BI consumption.
+
+Layer 1: Staging (stg_order_reviews.sql)
+Purpose: To create a clean, standardized foundation from the raw Postgres schema.
+
+Engineering Logic: In the staging layer, no business logic is applied. Instead, the focus is strictly on data typing and handling raw anomalies. For example, I explicitly cast types (CAST(review_score AS INT), CAST(review_creation_date AS TIMESTAMP)) to prevent downstream type-mismatch errors. I also utilized COALESCE(review_comment_message, 'Neutral') to safely handle NULL text values, ensuring that text-based BI dashboard filters do not break.
+
+Layer 2: Intermediate (int_orders_detail.sql)
+Purpose: To build the core semantic layer by joining normalized entities into a wide, cohesive format.
+
+Engineering Logic: This layer establishes the definitive "Order-Item" grain. By joining orders, order_items, products, and category_name_translation, we create a master reference table. Furthermore, I optimized the timestamps by casting them to dates (DATE(o.order_purchase_timestamp)). Abstracting timestamps to dates at the intermediate level improves database aggregation performance and aligns perfectly with how BI tools handle time-series charts.
+
+Layer 3: Mart (mart_order_detail.sql)
+Purpose: To house the strict business logic and serve the final, aggregated data to Apache Superset.
+
+Engineering Logic: * Filter Early (Predicate Pushdown): The very first step in the Mart model is WHERE order_status = 'delivered'. By filtering out canceled and processing orders before the aggregation step, we drastically reduce the memory required for the GROUP BY operation.
+
+Window Functions for Dashboards: I included RANK() OVER (ORDER BY total_revenue DESC) directly in the model. Pushing window functions into the dbt transformation layer rather than calculating them live in Superset ensures the dashboard loads instantly for the Senior Manager.
+
+Materialization: This model is configured in dbt_project.yml (or via model config) to materialize as a table. This transitions the pipeline from "compute at read" to "compute at write", guaranteeing sub-second dashboard performance.
+
+2. Pipeline Design: Loading & Orchestration
+If deploying this E-Commerce architecture into a real business environment, I would design the ELT pipeline as follows:
+
+Loading (Extraction & Load):
+
+I would utilize a managed ingestion tool like Airbyte or Fivetran.
+
+The transactional tables (Orders, Payments, Items) would be synced using an Incremental Append / Upsert strategy based on the order_updated_at timestamps to minimize database strain.
+
+To handle schema changes (e.g., an upstream developer adds a new column to the app), I would configure the ingestion tool to flag breaking changes and utilize dbt's +schema contract features to prevent pipeline failures.
+
+Orchestration:
+
+Tool: Apache Airflow (or AWS Managed Workflows for Apache Airflow).
+
+Justification: While dbt Cloud is excellent for pure SQL, a real warehouse requires coordinating multiple systems. Airflow allows us to build a seamless DAG (Directed Acyclic Graph):
+
+Trigger Airbyte to sync raw data to Postgres.
+
+Wait for success, then trigger the dbt run and dbt test commands.
+
+Upon dbt success, trigger an API call to Superset to warm up the dashboard caches. Airflow provides the ultimate end-to-end observability required for a Senior Engineer.
+
+3. Data Quality & Reliability Checks
+To ensure stakeholders can trust the dashboard, data quality must be automated. I would implement the following dbt tests across the pipeline (as outlined in the schema.yml):
+
+Primary Key Integrity: unique and not_null tests on order_id, product_id, and customer_id in the staging layer to instantly catch ingestion duplication bugs.
+
+Referential Integrity: relationships tests to ensure every customer_id in the orders table actually exists in the customers table.
+
+Business Logic Assertions: accepted_values tests on the order_status column to ensure no undocumented statuses (e.g., 'test_order') bypass our reporting filters and inflate the revenue metrics.
